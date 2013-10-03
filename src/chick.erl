@@ -14,3 +14,37 @@ get_process(Key) ->
 	Id = erlang:phash2(Key,Size),
 	[{Id,Process}] = ets:lookup(chick,Id),
 	Process.
+
+
+
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+
+no_crash_test() ->
+	ok = application:start(chick),
+	Me = self(),
+	[spawn(fun()->
+		[begin
+			Ids = [random:uniform(10) || _ <- lists:seq(1,100)],
+			Res = [case chick:in(Id,1,20) of ok -> Id; _ -> ignore end || Id <- Ids],
+			NewIds = lists:filter(fun
+				(ignore)-> false;
+				(_)-> true
+			end,Res),
+			[chick:out(Id) || Id <- NewIds]
+		end || _ <- lists:seq(1,100)],
+		Me ! done
+	end) || _ <- lists:seq(1,100)],
+	wait(100),
+	ok.
+
+wait(0) -> ok;
+wait(Count) ->
+	receive
+		done -> wait(Count - 1)
+	after
+		20000 -> throw(timed_out)
+	end.
+
+-endif.
