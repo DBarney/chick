@@ -3,7 +3,7 @@
 -export([in/3,out/1]).
 
 in(Key,HighWater,Threshold) ->
-	gen_server:cast(get_process(Key),{in,Key,self(),HighWater,Threshold}).
+	gen_server:call(get_process(Key),{in,Key,self(),HighWater,Threshold}).
 	
 out(Key)->
 	gen_server:cast(get_process(Key),{out,Key,self()}),
@@ -26,7 +26,7 @@ no_crash_test() ->
 	Me = self(),
 	[spawn(fun()->
 		[begin
-			Ids = [random:uniform(10) || _ <- lists:seq(1,100)],
+			Ids = lists:seq(1,10),
 			Res = [case chick:in(Id,1,20) of ok -> Id; _ -> ignore end || Id <- Ids],
 			NewIds = lists:filter(fun
 				(ignore)-> false;
@@ -35,8 +35,9 @@ no_crash_test() ->
 			[chick:out(Id) || Id <- NewIds]
 		end || _ <- lists:seq(1,100)],
 		Me ! done
-	end) || _ <- lists:seq(1,100)],
-	wait(100),
+	end) || _ <- lists:seq(1,400)],
+	wait(400),
+	application:stop(chick),
 	ok.
 
 wait(0) -> ok;
