@@ -25,6 +25,7 @@ I needed a way to:
 * dynamically change the levels of the queue
 * divide work over multiple cores
 * not spawn 50,000 processes just for individual queue management
+* really wanted to say 'chick:in' when talking about code
 
 
 ## Usage
