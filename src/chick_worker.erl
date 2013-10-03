@@ -29,7 +29,8 @@ init([Id]) ->
   ets:insert(chick,{Id,self()}),
   {ok, {Id,dict:new()}}.
 
-handle_call({in,Key,Pid,HighWater,Threshold}, From, {Id,Queues}) ->
+
+handle_call({out,Key,Pid,HighWater,Threshold}, From, {Id,Queues}) ->
   case dict:find(Key,Queues) of
     {ok,{Count,_Waiting,_Running}} when Count > Threshold ->
       {reply,{error,threshold_reached},{Id,Queues}};
@@ -48,6 +49,7 @@ handle_call({in,Key,Pid,HighWater,Threshold}, From, {Id,Queues}) ->
       Queues1 = dict:store(Key,{1,queue:new(),sets:add_element(Pid,sets:new())},Queues),
       {reply,ok,{Id,Queues1}}
   end;
+
 
 handle_call({{info,waiting},Key},_From,{Id,Queue}) ->
   case dict:find(Key,Queue) of
@@ -70,7 +72,7 @@ handle_call({{info,total},Key},_From,{Id,Queue}) ->
 handle_call(_Cmd, _From, State) ->
   {noreply, State}.
 
-handle_cast({out,Key,Pid}, {Id,Queues}) ->
+handle_cast({in,Key,Pid}, {Id,Queues}) ->
   case dict:find(Key,Queues) of      
     {ok,{1,_Waiting,_Running}} ->
       Queues1 = dict:erase(Key,Queues),
@@ -114,32 +116,32 @@ code_change(_OldVsn, State, _Extra) ->
 
 chick_in_out_test() ->
     State1 = {1,dict:new()},
-    {reply,ok,State2} = handle_call({in,<<"hello">>,pid1,2,3},{self(),make_ref()},State1),
+    {reply,ok,State2} = handle_call({out,<<"hello">>,pid1,2,3},{self(),make_ref()},State1),
     ?assertEqual({reply,{ok,1},State2},handle_call({{info,running},<<"hello">>},'_',State2)),
     ?assertEqual({reply,{ok,0},State2},handle_call({{info,waiting},<<"hello">>},'_',State2)),
     ?assertEqual({reply,{ok,1},State2},handle_call({{info,total},<<"hello">>},'_',State2)),
 
-    {reply,ok,State3} = handle_call({in,<<"hello1">>,pid2,2,3},{self(),make_ref()},State2),
+    {reply,ok,State3} = handle_call({out,<<"hello1">>,pid2,2,3},{self(),make_ref()},State2),
     ?assertEqual({reply,{ok,1},State3},handle_call({{info,running},<<"hello1">>},'_',State3)),
     ?assertEqual({reply,{ok,0},State3},handle_call({{info,waiting},<<"hello1">>},'_',State3)),
     ?assertEqual({reply,{ok,1},State3},handle_call({{info,total},<<"hello1">>},'_',State3)),
 
-    {reply,ok,State4} = handle_call({in,<<"hello">>,pid3,2,3},{self(),make_ref()},State3),
+    {reply,ok,State4} = handle_call({out,<<"hello">>,pid3,2,3},{self(),make_ref()},State3),
     ?assertEqual({reply,{ok,2},State4},handle_call({{info,running},<<"hello">>},'_',State4)),
     ?assertEqual({reply,{ok,0},State4},handle_call({{info,waiting},<<"hello">>},'_',State4)),
     ?assertEqual({reply,{ok,2},State4},handle_call({{info,total},<<"hello">>},'_',State4)),
 
-    {reply,ok,State5} = handle_call({in,<<"hello">>,pid4,2,3},{self(),make_ref()},State4),
+    {reply,ok,State5} = handle_call({out,<<"hello">>,pid4,2,3},{self(),make_ref()},State4),
     ?assertEqual({reply,{ok,3},State5},handle_call({{info,running},<<"hello">>},'_',State5)),
     ?assertEqual({reply,{ok,0},State5},handle_call({{info,waiting},<<"hello">>},'_',State5)),
     ?assertEqual({reply,{ok,3},State5},handle_call({{info,total},<<"hello">>},'_',State5)),
 
-    {noreply,State7} = handle_call({in,<<"hello">>,pid5,2,3},{self(),make_ref()},State5),
+    {noreply,State7} = handle_call({out,<<"hello">>,pid5,2,3},{self(),make_ref()},State5),
     ?assertEqual({reply,{ok,3},State7},handle_call({{info,running},<<"hello">>},'_',State7)),
     ?assertEqual({reply,{ok,1},State7},handle_call({{info,waiting},<<"hello">>},'_',State7)),
     ?assertEqual({reply,{ok,4},State7},handle_call({{info,total},<<"hello">>},'_',State7)),
 
-    {reply,{error,threshold_reached},State8} = handle_call({in,<<"hello">>,self(),2,3},{self(),make_ref()},State7),
+    {reply,{error,threshold_reached},State8} = handle_call({out,<<"hello">>,self(),2,3},{self(),make_ref()},State7),
     ?assertEqual({reply,{ok,3},State8},handle_call({{info,running},<<"hello">>},'_',State8)),
     ?assertEqual({reply,{ok,1},State8},handle_call({{info,waiting},<<"hello">>},'_',State8)),
     ?assertEqual({reply,{ok,4},State8},handle_call({{info,total},<<"hello">>},'_',State8)),
@@ -151,7 +153,7 @@ chick_in_out_test() ->
     end,
 
 
-    {noreply,State9} = handle_cast({out,<<"hello">>,pid1},State8),
+    {noreply,State9} = handle_cast({in,<<"hello">>,pid1},State8),
     ?assertEqual({reply,{ok,3},State9},handle_call({{info,running},<<"hello">>},'_',State9)),
     ?assertEqual({reply,{ok,0},State9},handle_call({{info,waiting},<<"hello">>},'_',State9)),
     ?assertEqual({reply,{ok,3},State9},handle_call({{info,total},<<"hello">>},'_',State9)),
@@ -162,23 +164,21 @@ chick_in_out_test() ->
       10 -> throw(no_message)
     end,
 
-    {noreply,State10} = handle_cast({out,<<"hello">>,pid3},State9),
+    {noreply,State10} = handle_cast({in,<<"hello">>,pid3},State9),
     ?assertEqual({reply,{ok,2},State10},handle_call({{info,running},<<"hello">>},'_',State10)),
     ?assertEqual({reply,{ok,0},State10},handle_call({{info,waiting},<<"hello">>},'_',State10)),
     ?assertEqual({reply,{ok,2},State10},handle_call({{info,total},<<"hello">>},'_',State10)),
 
-    {noreply,State11} = handle_cast({out,<<"hello">>,pid4},State10),
+    {noreply,State11} = handle_cast({in,<<"hello">>,pid4},State10),
     ?assertEqual({reply,{ok,1},State11},handle_call({{info,running},<<"hello">>},'_',State11)),
     ?assertEqual({reply,{ok,0},State11},handle_call({{info,waiting},<<"hello">>},'_',State11)),
     ?assertEqual({reply,{ok,1},State11},handle_call({{info,total},<<"hello">>},'_',State11)),
 
-    {noreply,State12} = handle_cast({out,<<"hello">>,pid5},State11),
+    {noreply,State12} = handle_cast({in,<<"hello">>,pid5},State11),
     ?assertEqual({reply,{ok,0},State12},handle_call({{info,running},<<"hello">>},'_',State12)),
     ?assertEqual({reply,{ok,0},State12},handle_call({{info,waiting},<<"hello">>},'_',State12)),
     ?assertEqual({reply,{ok,0},State12},handle_call({{info,total},<<"hello">>},'_',State12)),
 
-
-    % ?assertEqual({ok,"BCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/A"},to_base64(all_chars(0,0),[])).
     ok.
 
 -endif.
