@@ -3,7 +3,7 @@
 -export([in/1,out/3]).
 
 out(Key,HighWater,Threshold) when HighWater < Threshold ->
-	gen_server:call(get_process(Key),{out,Key,self(),HighWater,Threshold}).
+	gen_server:call(get_process(Key),{out,Key,self(),HighWater,Threshold},infinity).
 
 in(Key)->
 	gen_server:cast(get_process(Key),{in,Key,self()}),
